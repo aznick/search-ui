@@ -15,6 +15,14 @@ function getSnippet(result, value) {
   return result[value].snippet;
 }
 
+function get(result, value) {
+  // Fallback to raw values here, because non-string fields
+  // will not have a snippet fallback. Raw values MUST be html escaped.
+  let safeValue = getSnippet(result, value) || htmlEscape(getRaw(result, value));
+  safeValue = Array.isArray(safeValue) ? safeValue.join(", ") : safeValue;
+  return safeValue
+}
+
 function htmlEscape(str) {
   return String(str)
     .replace(/&/g, "&amp;")
@@ -32,16 +40,12 @@ function htmlEscape(str) {
     field2: "value2"
   }
 */
-function formatResultFields(result) {
-  return Object.keys(result).reduce((acc, n) => {
-    // Fallback to raw values here, because non-string fields
-    // will not have a snippet fallback. Raw values MUST be html escaped.
-    let value = result[n].snippet || htmlEscape(result[n].raw);
-    value = Array.isArray(value) ? value.join(", ") : value;
-    acc[n] = value;
-    return acc;
+function defaultFormatResultFields(result) {
+  return Object.keys(result).reduce((acc, field) => {
+    return {...acc, [field]: get(result, field)}
   }, {});
 }
+
 export class ResultContainer extends Component {
   static propTypes = {
     // Props
@@ -73,16 +77,18 @@ export class ResultContainer extends Component {
   };
 
   render() {
-    const { result, titleField, urlField, view } = this.props;
+    const { result, titleField, urlField, view, formatResultFields } = this.props;
     const View = view || Result;
 
+    const formattedResultFields = formatResultFields ?
+      formatResultFields(result, {get, getRaw, getSnippet, htmlEscape})
+      : defaultFormatResultFields(result)
+
     return View({
-      fields: formatResultFields(result),
+      result: formattedResultFields,
       key: `result-${getRaw(result, "id")}`,
       onClickLink: () => this.handleClickLink(getRaw(result, "id")),
-      title:
-        getSnippet(result, titleField) ||
-        htmlEscape(getRaw(result, titleField)),
+      title: get(result, titleField),
       url: getRaw(result, urlField)
     });
   }
